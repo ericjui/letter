@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>📨 LetterMaker 2.0 - 書信產生器</title>
+    <script src="https://cdn.ckeditor.com/4.16.2/standard/ckeditor.js"></script>
+    <script src="sendEmail.js"></script> <!-- 新增的 JS 檔案 -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ecf0f1;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background-color: #2c3e50;
+            color: #ffffff;
+            padding: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h3 {
+            color: #34495e;
+            text-align: center;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: 1px solid #bdc3c7;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        select:hover, select:focus {
+            border-color: #3498db;
+        }
+
+        button {
+            background-color: #1abc9c;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #16a085;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .loading img {
+            width: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">📨 LetterMaker 2.0 - 正式書信產生器</div>
+    <div class="container">
+        <h3>📂 先選擇書信範例-再選擇想要提示的書信格式</h3>
+        <select id="categorySelect" onchange="updateSubCategories()">
+            <option value="">請選擇主分類</option>
+        </select>
+        <select id="subCategorySelect" onchange="updateFileOptions()" disabled>
+            <option value="">請先選擇主分類</option>
+        </select>
+        <select id="fileSelect" onchange="loadFileContent()" disabled>
+            <option value="">請先選擇子分類</option>
+        </select>
+
+        <h3>📝 書信內容編輯</h3>
+        <textarea id="editor"></textarea>
+        
+        <button onclick="sendEmail()">📩 寄出信件</button>
+
+        <div class="loading" id="loading">
+            <img src="https://i.gifer.com/ZZ5H.gif" alt="Loading...">
+            <p>郵件發送中，請稍候...</p>
+        </div>
+
+        <script>
+            CKEDITOR.replace('editor');
+
+            let letterData = {
+                "書信範例": {
+                    "表達感謝": { "感謝推薦函": "感謝推薦內容...", "感謝晚宴函": "____(收信者名字號)(稱謂)(提稱語):(啟事語)<br>(開頭應酬語)非常謝謝你和你的家人對我熱情的晚宴款待,讓我有一個難忘而且溫馨的夜晚,我會記得你和你的家人對我所做的一切,希望將來有機會我也能邀請你到我____(家的位置)的家中,讓我略盡地主之誼,以回報你的熱情的殷勤招待(書牘主體)(結尾應酬語)。(結尾敬語)敬祝<br>闔第平安(結尾問候語)<br>學弟______(署全名)敬上__月__日" },
+                    "邀請": { "邀請演講函": "邀請演講內容...", "同意邀請函": "同意邀請內容..." }
+                },
+                "稱謂": {
+                    "請直接書寫名字(字、號)": { "名字": "瑞琪", "字號": "傳奇" },
+                    "公職位": { "官銜(部長)：中央政府管理部門的首長": "部長", "官銜(市長)：中央政府管理市府的首長": "市長", "官銜(縣長)：中央政府管理縣府的首長": "縣長" , "官銜(校長)：管理學校的首長": "校長", "職稱(董事長)：董事會的首席代表": "董事長", "職稱(總經理)：公司管理的最高主管": "總經理", "職稱(主任)：負責某一部門的主管": "主任"},
+                    "私關係": { "家族(高祖父)：自稱玄孫、玄孫女者稱": "高祖父", "家族(吾父)：兒女對父親的稱呼": "吾父"}
+                },
+                "提稱語": {
+                    "用於尊長": { "鈞鑒：有恭敬的請對方閱讀之意": "鈞鑒", "崇鑒：請尊長查閱的意思": "崇鑒"},
+                    "用於師長": { "函丈：對老師的尊稱": "函丈", "講席：原指教師講學的座位，可用為尊稱": "講席" }
+                }
+            };
+
+            function initializeCategories() {
+                let categorySelect = document.getElementById("categorySelect");
+                for (let category in letterData) {
+                    let option = document.createElement("option");
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                }
+            }
+
+            function updateSubCategories() {
+                let category = document.getElementById("categorySelect").value;
+                let subCategorySelect = document.getElementById("subCategorySelect");
+                let fileSelect = document.getElementById("fileSelect");
+
+                subCategorySelect.innerHTML = '<option value="">請選擇子分類</option>';
+                fileSelect.innerHTML = '<option value="">請先選擇子分類</option>';
+                fileSelect.disabled = true;
+
+                if (category) {
+                    for (let subCategory in letterData[category]) {
+                        let option = document.createElement("option");
+                        option.value = subCategory;
+                        option.textContent = subCategory;
+                        subCategorySelect.appendChild(option);
+                    }
+                    subCategorySelect.disabled = false;
+                } else {
+                    subCategorySelect.disabled = true;
+                }
+            }
+
+            function updateFileOptions() {
+                let category = document.getElementById("categorySelect").value;
+                let subCategory = document.getElementById("subCategorySelect").value;
+                let fileSelect = document.getElementById("fileSelect");
+
+                fileSelect.innerHTML = '<option value="">請選擇範例</option>';
+
+                if (category && subCategory) {
+                    for (let file in letterData[category][subCategory]) {
+                        let option = document.createElement("option");
+                        option.value = file;
+                        option.textContent = file;
+                        fileSelect.appendChild(option);
+                    }
+                    fileSelect.disabled = false;
+                } else {
+                    fileSelect.disabled = true;
+                }
+            }
+
+         function loadFileContent() {
+    let category = document.getElementById("categorySelect").value;
+    let subCategory = document.getElementById("subCategorySelect").value;
+    let file = document.getElementById("fileSelect").value;
+
+    if (category && subCategory && file) {
+        let content = letterData[category][subCategory][file];
+
+        // 只取"──"前的內容
+        let modifiedContent = content.split("──")[0];
+
+        // 插入 CKEditor
+        CKEDITOR.instances.editor.insertHtml(modifiedContent);
+    }
+}
+
+
+
+            initializeCategories();
+        </script>
+    </div>
+    <div align="center">
+        <p>程式設計: 侯瑞琪老師 版權所有 &copy; 2025 All Rights Reserved</p>
+    </div>
+
+</body>
+</html>
